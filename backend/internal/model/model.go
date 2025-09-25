@@ -43,8 +43,6 @@ type ValidatorData struct {
 type DB struct {
 	LastEpoch        uint64                            `json:"last_epoch"`
 	Validators       map[string]ValidatorData          `json:"validators"`
-	Performances     map[string]ValidatorPerformance   `json:"performances"`
-	ExecPerformances map[string]ValidatorExecPerformance `json:"exec_performances"`
 	EthstoreAPR      float64                           `json:"ethstore_apr,omitempty"`
 	Mutex            sync.Mutex                        `json:"-"`
 }

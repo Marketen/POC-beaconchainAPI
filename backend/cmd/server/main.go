@@ -6,14 +6,14 @@ import (
 	"time"
 
 	"github.com/Marketen/POC-beaconchainAPI/backend/internal/api"
-	"github.com/Marketen/POC-beaconchainAPI/backend/internal/db"
 	"github.com/Marketen/POC-beaconchainAPI/backend/internal/beacon"
+	"github.com/Marketen/POC-beaconchainAPI/backend/internal/db"
 	"github.com/Marketen/POC-beaconchainAPI/backend/internal/model"
 	"github.com/Marketen/POC-beaconchainAPI/backend/internal/util"
 )
 
 var (
-	rateLimit = time.Second / 4 // 4 calls per second (rate limit is 5 but we are cautious)
+	rateLimit = time.Second / 4        // 4 calls per second (rate limit is 5 but we are cautious)
 	apiTokens = make(chan struct{}, 1) // strict global rate limiter, no burst
 )
 
@@ -37,7 +37,7 @@ func acquireAPIToken() {
 func main() {
 	beacon.BaseURL = util.GetEnv("BEACON_API_BASE", "https://beaconcha.in")
 	beacon.APIKey = util.GetEnv("BEACON_API_KEY", "")
-	
+
 	db.LoadDB(&dbInst)
 
 	mux := http.NewServeMux()

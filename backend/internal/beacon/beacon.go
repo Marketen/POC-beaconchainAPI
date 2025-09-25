@@ -8,6 +8,8 @@ import (
 	"net/http"
 	"strings"
 	"time"
+
+	"github.com/Marketen/POC-beaconchainAPI/backend/internal/db"
 	"github.com/Marketen/POC-beaconchainAPI/backend/internal/model"
 )
 
@@ -129,12 +131,12 @@ func FetchValidatorPerformance(indices string) (map[string]model.ValidatorPerfor
 		defer resp.Body.Close()
 		var result struct {
 			Data []struct {
-				Index            json.Number `json:"validatorindex"`
-				Performance1d    float64     `json:"performance1d"`
-				Performance7d    float64     `json:"performance7d"`
-				Performance31d   float64     `json:"performance31d"`
-				Performance365d  float64     `json:"performance365d"`
-				Rank7d           int         `json:"rank7d"`
+				Index           json.Number `json:"validatorindex"`
+				Performance1d   float64     `json:"performance1d"`
+				Performance7d   float64     `json:"performance7d"`
+				Performance31d  float64     `json:"performance31d"`
+				Performance365d float64     `json:"performance365d"`
+				Rank7d          int         `json:"rank7d"`
 			} `json:"data"`
 		}
 		if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
@@ -145,12 +147,12 @@ func FetchValidatorPerformance(indices string) (map[string]model.ValidatorPerfor
 		for _, v := range result.Data {
 			idxStr := v.Index.String()
 			resultMap[idxStr] = model.ValidatorPerformance{
-				Index:          idxStr,
-				Performance1d:  v.Performance1d,
-				Performance7d:  v.Performance7d,
-				Performance31d: v.Performance31d,
-				Performance365d:v.Performance365d,
-				Rank7d:         v.Rank7d,
+				Index:           idxStr,
+				Performance1d:   v.Performance1d,
+				Performance7d:   v.Performance7d,
+				Performance31d:  v.Performance31d,
+				Performance365d: v.Performance365d,
+				Rank7d:          v.Rank7d,
 			}
 		}
 	}
@@ -174,10 +176,10 @@ func FetchValidatorExecPerformance(indices string) (map[string]model.ValidatorEx
 		defer resp.Body.Close()
 		var result struct {
 			Data []struct {
-				Index            json.Number `json:"validatorindex"`
-				Performance1d    float64     `json:"performance1d"`
-				Performance7d    float64     `json:"performance7d"`
-				Performance31d   float64     `json:"performance31d"`
+				Index          json.Number `json:"validatorindex"`
+				Performance1d  float64     `json:"performance1d"`
+				Performance7d  float64     `json:"performance7d"`
+				Performance31d float64     `json:"performance31d"`
 			} `json:"data"`
 		}
 		if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
@@ -199,7 +201,7 @@ func FetchValidatorExecPerformance(indices string) (map[string]model.ValidatorEx
 }
 
 func FetchEthstoreAPR() (float64, error) {
-	url := fmt.Sprintf("%s/api/v1/ethstore/apr?apikey=%s", BaseURL, APIKey)
+	url := fmt.Sprintf("%s/api/v1/ethstore/latest?apikey=%s", BaseURL, APIKey)
 	resp, err := httpGetWithTimeout(url)
 	if err != nil {
 		return 0, err
@@ -234,10 +236,13 @@ func FetchFinalizedEpoch() (uint64, error) {
 	return result.Data.Epoch, nil
 }
 
-func TryFetchAndUpdate(indices []string, db *model.DB) error {
+func TryFetchAndUpdate(indices []string, dbInst *model.DB) error {
 	if len(indices) == 0 {
 		log.Println("[TryFetchAndUpdate] No indices provided, skipping fetch.")
 		return nil
+	}
+	if dbInst.Validators == nil {
+		dbInst.Validators = make(map[string]model.ValidatorData)
 	}
 	log.Printf("[TryFetchAndUpdate] Updating %d indices", len(indices))
 
@@ -263,24 +268,42 @@ func TryFetchAndUpdate(indices []string, db *model.DB) error {
 	}
 
 	for _, idx := range indices {
-		if v, ok := info[idx]; ok {
-			db.Validators[idx] = v
-		}
-		if p, ok := perf[idx]; ok {
-			db.Performances[idx] = p
-		}
-		if e, ok := execPerf[idx]; ok {
-			db.ExecPerformances[idx] = e
+		v, vOk := info[idx]
+		p, pOk := perf[idx]
+		e, eOk := execPerf[idx]
+
+		if vOk {
+			// Attach consensus performance if available
+			if pOk {
+				v.Consensus = &model.ConsensusPerformance{
+					Performance1d:   p.Performance1d,
+					Performance7d:   p.Performance7d,
+					Performance31d:  p.Performance31d,
+					Performance365d: p.Performance365d,
+					Rank7d:          p.Rank7d,
+				}
+			}
+			// Attach execution performance if available
+			if eOk {
+				v.Execution = &model.ExecutionPerformance{
+					Performance1d:  e.Performance1d,
+					Performance7d:  e.Performance7d,
+					Performance31d: e.Performance31d,
+				}
+			}
+			dbInst.Validators[idx] = v
 		}
 	}
 
 	log.Println("[TryFetchAndUpdate] Calling FetchEthstoreAPR")
 	apr, err := FetchEthstoreAPR()
 	if err == nil {
-		db.EthstoreAPR = apr
+		dbInst.EthstoreAPR = apr
 		log.Printf("[TryFetchAndUpdate] EthstoreAPR updated: %f", apr)
 	} else {
 		log.Printf("[TryFetchAndUpdate] Error in FetchEthstoreAPR: %v", err)
 	}
+
+	db.SaveDB(dbInst)
 	return nil
 }
