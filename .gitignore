@@ -1,0 +1,36 @@
+# Go
+/backend/bin/
+/backend/app
+/backend/*.exe
+/backend/*.out
+/backend/*.test
+/backend/coverage*
+/backend/debug/
+/backend/.vscode/
+/backend/.idea/
+/backend/go.sum
+/backend/go.mod
+/backend/db.json
+
+# Node/Express
+/validator-ui/node_modules/
+/validator-ui/.env
+/validator-ui/.DS_Store
+/validator-ui/npm-debug.log*
+/validator-ui/yarn-error.log*
+/validator-ui/dist/
+
+# General
+*.log
+*.swp
+*.swo
+*.tmp
+*.bak
+.DS_Store
+.env
+
+# Docker
+**/.docker/
+**/docker-compose.override.yml
+
+db.json

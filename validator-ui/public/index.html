@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Validator Explorer</title>
+  <style>
+    body { font-family: sans-serif; margin: 2em; }
+    input, button { font-size: 1em; margin: 0.5em 0; }
+    table { border-collapse: collapse; width: 100%; margin-top: 1em; }
+    th, td { border: 1px solid #ccc; padding: 0.5em; text-align: left; }
+    th { background: #f0f0f0; }
+    .error { color: red; }
+    #updateBtn { margin-bottom: 1em; }
+  </style>
+</head>
+<body>
+  <h1>Validator Explorer</h1>
+  <form id="searchForm" onsubmit="return false;">
+    <label for="indices">Enter validator indices (comma separated):</label><br>
+    <input type="text" id="indices" size="50" placeholder="e.g. 1,2,3">
+    <button onclick="searchValidators()">Search</button>
+  </form>
+  <button id="updateBtn" onclick="forceUpdate()">Force Update All Validators</button>
+  <div id="error" class="error"></div>
+  <table id="validators">
+    <thead>
+      <tr>
+        <th>Index</th>
+        <th>Balance</th>
+        <th>Effective Balance</th>
+        <th>Consensus (1d/7d/31d)</th>
+        <th>Execution (1d/7d/31d)</th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  </table>
+  <script>
+    const API_URL = 'http://localhost:8050';
+    async function searchValidators() {
+      document.getElementById('error').textContent = '';
+      const indices = document.getElementById('indices').value.trim();
+      if (!indices) {
+        document.getElementById('error').textContent = 'Please enter at least one validator index.';
+        return;
+      }
+      const tbody = document.querySelector('#validators tbody');
+      tbody.innerHTML = '<tr><td colspan="5">Loading...</td></tr>';
+      try {
+        const res = await fetch(`${API_URL}/validators?indices=${encodeURIComponent(indices)}`);
+        if (!res.ok) throw new Error('API error');
+        const data = await res.json();
+        tbody.innerHTML = '';
+        if (Object.keys(data).length === 0) {
+          tbody.innerHTML = '<tr><td colspan="5">No validators found.</td></tr>';
+          return;
+        }
+        for (const idx in data) {
+          const v = data[idx];
+          tbody.innerHTML += `<tr>
+            <td>${v.index}</td>
+            <td>${v.balance}</td>
+            <td>${v.effective_balance}</td>
+            <td>${v.consensus ? `${v.consensus.performance1d} / ${v.consensus.performance7d} / ${v.consensus.performance31d}` : '-'}</td>
+            <td>${v.execution ? `${v.execution.performance1d} / ${v.execution.performance7d} / ${v.execution.performance31d}` : '-'}</td>
+          </tr>`;
+        }
+      } catch (e) {
+        document.getElementById('error').textContent = e.message;
+        tbody.innerHTML = '';
+      }
+    }
+    async function forceUpdate() {
+      document.getElementById('error').textContent = '';
+      document.getElementById('updateBtn').disabled = true;
+      try {
+        const res = await fetch(`${API_URL}/force_update`, { method: 'POST' });
+        if (!res.ok) throw new Error('API error');
+        const data = await res.json();
+        document.getElementById('error').textContent = data.status || 'Update started.';
+      } catch (e) {
+        document.getElementById('error').textContent = e.message;
+      }
+      document.getElementById('updateBtn').disabled = false;
+    }
+  </script>
+</body>
+</html>

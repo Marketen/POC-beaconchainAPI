@@ -1,0 +1,20 @@
+version: '3.8'
+services:
+  beaconpoc:
+    build: .
+    ports:
+      - "8050:8080"
+    environment:
+      - BEACON_API_BASE=https://beaconcha.in
+      - BEACON_API_KEY=XXX
+    volumes:
+      - ./db.json:/app/db.json
+  validator-ui:
+    build: ./validator-ui
+    ports:
+      - "3005:3005"
+    working_dir: /app
+    volumes:
+      - ./validator-ui:/app
+    environment:
+      - API_URL=http://beaconpoc:8080
