@@ -6,6 +6,9 @@ import (
 	"time"
 
 	"github.com/Marketen/POC-beaconchainAPI/backend/internal/api"
+	"github.com/Marketen/POC-beaconchainAPI/backend/internal/db"
+	"github.com/Marketen/POC-beaconchainAPI/backend/internal/beacon"
+	"github.com/Marketen/POC-beaconchainAPI/backend/internal/model"
 	"github.com/Marketen/POC-beaconchainAPI/backend/internal/util"
 )
 
@@ -13,6 +16,8 @@ var (
 	rateLimit = time.Second / 4 // 4 calls per second (rate limit is 5 but we are cautious)
 	apiTokens = make(chan struct{}, 1) // strict global rate limiter, no burst
 )
+
+var dbInst model.DB
 
 func init() {
 	go func() {
@@ -30,20 +35,25 @@ func acquireAPIToken() {
 }
 
 func main() {
-	db.LoadDB()
-	http.HandleFunc("/validators", api.WithCORS(api.HandleGetValidators))
-	http.HandleFunc("/validators/add", api.WithCORS(api.HandleAddIndices))
-	http.HandleFunc("/validators/delete", api.WithCORS(api.HandleDeleteIndices))
-	http.HandleFunc("/ethstore_apr", api.WithCORS(api.HandleGetEthstoreAPR))
-	http.HandleFunc("/force_update", api.WithCORS(api.HandleForceUpdate))
-	http.Handle("/ui/", http.StripPrefix("/ui/", http.FileServer(http.Dir("."))))
+	beacon.BaseURL = util.GetEnv("BEACON_API_BASE", "https://beaconcha.in")
+	beacon.APIKey = util.GetEnv("BEACON_API_KEY", "")
+	
+	db.LoadDB(&dbInst)
 
 	mux := http.NewServeMux()
-	mux.HandleFunc("/validators", api.WithCORS(api.HandleGetValidators))
-	mux.HandleFunc("/validators/add", api.WithCORS(api.HandleAddIndices))
-	mux.HandleFunc("/validators/delete", api.WithCORS(api.HandleDeleteIndices))
-	mux.HandleFunc("/ethstore_apr", api.WithCORS(api.HandleGetEthstoreAPR))
-	mux.HandleFunc("/force_update", api.WithCORS(api.HandleForceUpdate))
+	mux.HandleFunc("/validators", api.WithCORS(api.HandleGetValidators(&dbInst, util.GetEnv("INDICES_ENV", ""))))
+	mux.HandleFunc("/validators/add", api.WithCORS(api.HandleAddIndices(&dbInst)))
+	mux.HandleFunc("/validators/delete", api.WithCORS(api.HandleDeleteIndices(&dbInst)))
+	mux.HandleFunc("/ethstore_apr", api.WithCORS(api.HandleGetEthstoreAPR(&dbInst)))
+	mux.HandleFunc("/force_update", api.WithCORS(api.HandleForceUpdate(func() {
+		dbInst.Mutex.Lock()
+		indices := make([]string, 0, len(dbInst.Validators))
+		for idx := range dbInst.Validators {
+			indices = append(indices, idx)
+		}
+		dbInst.Mutex.Unlock()
+		beacon.TryFetchAndUpdate(indices, &dbInst)
+	})))
 	mux.Handle("/ui/", http.StripPrefix("/ui/", http.FileServer(http.Dir("."))))
 
 	handler := func(w http.ResponseWriter, r *http.Request) {
@@ -59,8 +69,14 @@ func main() {
 
 	go func() {
 		for {
+			dbInst.Mutex.Lock()
+			indices := make([]string, 0, len(dbInst.Validators))
+			for idx := range dbInst.Validators {
+				indices = append(indices, idx)
+			}
+			dbInst.Mutex.Unlock()
 			log.Println("[CRON] tryFetchAndUpdate started")
-			api.TryFetchAndUpdate()
+			beacon.TryFetchAndUpdate(indices, &dbInst)
 			log.Println("[CRON] tryFetchAndUpdate finished")
 			time.Sleep(60 * time.Minute)
 		}

@@ -16,6 +16,22 @@ type ExecutionPerformance struct {
 	Performance31d float64 `json:"performance31d"`
 }
 
+type ValidatorPerformance struct {
+	Index          string  `json:"index"`
+	Performance1d  float64 `json:"performance1d"`
+	Performance7d  float64 `json:"performance7d"`
+	Performance31d float64 `json:"performance31d"`
+	Performance365d float64 `json:"performance365d"`
+	Rank7d         int     `json:"rank7d"`
+}
+
+type ValidatorExecPerformance struct {
+	Index          string  `json:"index"`
+	Performance1d  float64 `json:"performance1d"`
+	Performance7d  float64 `json:"performance7d"`
+	Performance31d float64 `json:"performance31d"`
+}
+
 type ValidatorData struct {
 	Index            string                `json:"index"`
 	Balance          uint64                `json:"balance"`
@@ -25,8 +41,10 @@ type ValidatorData struct {
 }
 
 type DB struct {
-	LastEpoch   uint64                   `json:"last_epoch"`
-	Validators  map[string]ValidatorData `json:"validators"`
-	EthstoreAPR float64                  `json:"ethstore_apr,omitempty"`
-	Mutex       sync.Mutex               `json:"-"`
+	LastEpoch        uint64                            `json:"last_epoch"`
+	Validators       map[string]ValidatorData          `json:"validators"`
+	Performances     map[string]ValidatorPerformance   `json:"performances"`
+	ExecPerformances map[string]ValidatorExecPerformance `json:"exec_performances"`
+	EthstoreAPR      float64                           `json:"ethstore_apr,omitempty"`
+	Mutex            sync.Mutex                        `json:"-"`
 }
